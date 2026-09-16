@@ -1,0 +1,7 @@
+*.zip
+*備份*.json
+*資料包*.json
+seed.json
+ekg-data.js
+assets/
+

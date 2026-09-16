@@ -1,0 +1,8 @@
+export const DB_NAME='g2e-private-local-v2';
+let db;
+export async function openDB(){if(db)return db;db=await new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,1);req.onupgradeneeded=()=>{for(const store of ['records','media','vendors','meta','drafts'])req.result.createObjectStore(store,{keyPath:'id'});};req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('請關閉同網址的其他舊分頁後重試。'));req.onsuccess=()=>resolve(req.result);});db.onversionchange=()=>{db.close();db=null;};return db;}
+export async function all(store){const d=await openDB();return new Promise((resolve,reject)=>{const req=d.transaction(store).objectStore(store).getAll();req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+export async function get(store,id){const d=await openDB();return new Promise((resolve,reject)=>{const req=d.transaction(store).objectStore(store).get(id);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+export async function batch(changes){const d=await openDB();return new Promise((resolve,reject)=>{const tx=d.transaction([...new Set(changes.map(c=>c.store))],'readwrite');tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error('本機儲存未完成。'));tx.onerror=()=>{};try{for(const c of changes){const s=tx.objectStore(c.store);if(c.delete)s.delete(c.id);else s.put(c.value);}}catch(e){tx.abort();reject(e);}});}
+export const put=(store,value)=>batch([{store,value}]);
+export async function initialize(seed){if(await get('meta','seedVersion'))return;await batch([...seed.records.map(value=>({store:'records',value})),...seed.media.map(value=>({store:'media',value})),...seed.vendors.map(value=>({store:'vendors',value})),{store:'meta',value:{id:'seedVersion',value:seed.version}}]);}
