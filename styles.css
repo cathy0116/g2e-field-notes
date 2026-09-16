@@ -33,3 +33,7 @@ input,textarea,select{scroll-margin-top:90px;scroll-margin-bottom:160px}
 }
 @media(max-width:360px){.catalog{grid-template-columns:1fr}.brand{font-size:14px}.top button{font-size:12px}}
 @media(max-width:700px) and (max-height:500px){.form-footer{position:static}.nav{position:static}.top{position:static}}
+
+/* Casino notebook: same field-work palette, six reachable mobile tabs. */
+.casino-copy{white-space:pre-wrap;overflow-wrap:anywhere}.help-content{max-width:850px}.help-content li{line-height:1.85;margin:8px 0}.casino-actions{margin:12px 0}.file-button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+@media(max-width:700px){.nav a.helpLink{display:none}.nav a{min-width:0;font-size:10px}.nav a span{font-size:21px}.casino-copy{font-size:16px}}

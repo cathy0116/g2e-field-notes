@@ -1,4 +1,29 @@
-# Field Notes App
+# 展場遊戲資料庫 v2.1
 
-Public application code only. Import your own local JSON data pack in the app. Imported records, photos and glossary stay in browser storage. No cloud sync or analytics. Back up daily. Do not upload data packs or exported backups to this repository.
+[開啟 App](https://cathy0116.github.io/g2e-field-notes/) · [完整使用教學](https://cathy0116.github.io/g2e-field-notes/#help)
 
+手機單機研究筆記：機台圖鑑、廠商攤位、EKG 字典匯入、賭場觀察、照片與文字、離線使用及 JSON 備份。
+
+## iPhone 快速開始
+
+1. Safari 開啟 App，分享 → 加入主畫面，之後固定從圖示開啟。
+2. 私人資料包先存到手機「檔案」，在 App「資料與備份」選檔匯入。
+3. 下載離線資料，再開飛航模式測試查看及新增紀錄。
+4. 機台使用「快速紀錄」；整間賭場的特性使用「賭場觀察」。
+5. 收工先儲存草稿，再製作完整備份 → 分享／存到檔案，確認真的存好。
+
+## 備份與安全
+
+不每天備份不會自動清空資料；可以回國再匯出，但若手機遺失、故障、網站資料被清除或儲存異常，可能失去整趟紀錄。建議每天或重要訪查結束後備份，並在公司允許的位置保留手機以外的一份。
+
+完整 JSON 包含機台、賭場、廠商、詞彙、筆記與引用的照片原檔。草稿、外部錄音和影片不包含在內。CSV 僅為機台文字表，不能取代完整備份。
+
+兩人各自保存，不會自動同步。同 ID 還原使用較新時間優先，不是多人無損合併；回程整理前保留雙方原始備份。
+
+此專案只發布空白 App 程式及公開教學。匯入內容只存目前裝置，不上傳 GitHub；備份未加密，請勿將私人資料包、備份、研究圖片或內部字典提交到此公開專案。
+
+## 更新
+
+v2.1 新增賭場觀察與離線使用教學。原本的本機資料庫保留；新版可讀舊資料包，含賭場的新版備份需用 v2.1 或更新版本。
+
+更新前先備份、儲存草稿。有網路時關閉 App 再開啟，必要時重新載入；確認教學顯示 v2.1 後重新下載離線資料。不要用清除網站資料的方式更新。

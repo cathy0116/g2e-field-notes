@@ -1,5 +1,5 @@
-const VERSION='public-v2.0.1', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
-const CORE=['./','index.html','styles.css','app.js','model.js','ekg.js','db.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','offline-assets.json'];
+const VERSION='public-v2.1.0', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
+const CORE=['./','index.html','styles.css','app.js','help.js','model.js','ekg.js','db.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','offline-assets.json'];
 self.addEventListener('install',e=>e.waitUntil((async()=>{await (await caches.open(SHELL)).addAll(CORE);await self.skipWaiting();})()));
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin||!u.pathname.startsWith(new URL(self.registration.scope).pathname))return;e.respondWith((async()=>{const full=await caches.open(FULL),shell=await caches.open(SHELL);const cached=await full.match(e.request)||await shell.match(e.request);if(cached)return cached;if(u.pathname.includes('/assets/')){const old=await caches.match(e.request);if(old)return old;}try{return await fetch(e.request);}catch(err){if(e.request.mode==='navigate')return await shell.match(new URL('index.html',self.registration.scope));throw err;}})());});
