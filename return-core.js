@@ -1,5 +1,6 @@
-export const TOOL_VERSION='1.0.0';
-export const SHEETS=[
+import {canonicalVendor} from './vendors.js';
+export const TOOL_VERSION='1.1.0';
+const DETAIL_SHEETS=[
  ['使用說明與版本',['項目','內容']],
  ['機台總表',['整理ID','身份狀態','原始名稱','標準名稱（待查）','廠商','產品類型','平台／市場／版本（待查）','地點','地點詳述','遊戲說明原文','個人心得原文','作品原填','系列原填','作品關係（待查）','上市年（待查）','日期類型（待查）','玩法Tag','主題／美術','美術說明','相關連結','照片路徑','錄音路徑','來源ID','原始ID','更新時間（原文）','狀態','待確認事項']],
  ['賭場觀察',['整理ID','賭場名稱','城市','訪查日（原文）','特性與說明原文','照片路徑','錄音路徑','來源ID','原始ID','更新時間（原文）','封存']],
@@ -8,6 +9,40 @@ export const SHEETS=[
  ['來源索引',['來源ID','紀錄者','原始檔名','SHA-256','App版本（原填）','Schema','備份時間（原文）','原始JSON路徑','機台數','賭場數','附件數']],
  ['附件索引',['來源ID','原始附件ID','原始檔名','類型','來源','圖說','附件路徑','位元組','SHA-256','引用整理ID']]
 ];
+const detailOrder=[4,2,7,8,9,10,16,17,18,11,12,5,3,6,13,14,15,19,20,21,25,26,0,1,22,23,24];
+export const SHEETS=[
+ ['遊戲總覽',['廠商','遊戲名稱','代表圖片','地點','玩法標籤','玩法摘錄','個人心得摘錄','紀錄者','查證狀態','整理ID']],
+ ['遊戲詳細資料',detailOrder.map(i=>DETAIL_SHEETS[1][1][i])],
+ ['賭場觀察',['賭場名稱','城市','訪查日（原文）','特性與說明原文','照片路徑','錄音路徑','封存','整理ID','來源ID','原始ID','更新時間（原文）']],
+ DETAIL_SHEETS[4],DETAIL_SHEETS[3],DETAIL_SHEETS[5],DETAIL_SHEETS[6],DETAIL_SHEETS[0]
+];
+export const excerpt=(value,limit=100)=>{const text=str(value).replace(/\s+/g,' ').trim();return text.length>limit?text.slice(0,limit)+'…':text;};
+export const vendorFor=r=>r.type==='賭場'?'賭場觀察':canonicalVendor(r.raw.vendor)||'廠商待確認';
+export const searchText=r=>[r.owner,vendorFor(r),...['name','vendor','description','personalNotes','locationDetail','location','city','notes','tags','styles','artNotes','todo','family','work'].map(k=>str(r.raw[k]))].join(' ').toLowerCase();
+export const sortedRecords=c=>[...c.records].sort((a,b)=>vendorFor(a).localeCompare(vendorFor(b),'zh-Hant')||str(a.raw.name).localeCompare(str(b.raw.name),'zh-Hant')||a.key.localeCompare(b.key));
+export function safeFilePart(value,fallback='名稱未填寫'){
+ const s=[...str(value).normalize('NFC').replace(/[<>:"/\\|?*#%\x00-\x1f\x7f]/g,'_').replace(/[. ]+$/g,'').trim()].slice(0,65).join('').replace(/[. ]+$/g,'');
+ return !s||/^\.+$/.test(s)?fallback:/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i.test(s)?'_'+s:s;
+}
+// Readable names are export labels only. Stable record/media IDs remain in the index.
+export function nameAttachments(c){
+ const sourceAssets=c.attachments,newAssets=[],counts=new Map(),used=new Set(),referenced=new Set();
+ const lookup=new Map(sourceAssets.map(a=>[a.path,a]));
+ function copy(a,r){
+  const root=a.type.startsWith('image/')?'照片':'錄音';
+  const group=r?(r.type==='賭場'?'賭場觀察/'+safeFilePart(r.raw.name,'賭場名稱未填寫'):safeFilePart(vendorFor(r))):'未歸屬附件';
+  const base=safeFilePart(r?.raw.name,r?.type==='賭場'?'賭場名稱未填寫':r?'機台名稱未填寫':'未歸屬附件');
+  const stem=`${root}/${group}/${base}`,key=stem.toLowerCase();let n=counts.get(key)||0,path;
+  do{path=`${stem}_${String(++n).padStart(3,'0')}.${a.ext}`;}while(used.has(path.toLowerCase()));
+  counts.set(key,n);used.add(path.toLowerCase());referenced.add(a.path);
+  const item={...a,path,exportName:path.split('/').pop(),recordName:r?.raw.name||'',vendor:r?vendorFor(r):'',refs:r?[r.key]:[],originalPath:a.path};newAssets.push(item);return path;
+ }
+ for(const r of [...c.records].sort((a,b)=>a.key.localeCompare(b.key))){
+  const local=new Map();for(const kind of ['photos','audios'])r[kind]=r[kind].map(p=>{if(!local.has(p))local.set(p,copy(lookup.get(p),r));return local.get(p);});
+ }
+ for(const a of sourceAssets)if(!referenced.has(a.path)){copy(a,null);c.warnings.push(`附件 ${a.name||a.id} 未被任何機台或賭場引用，已保留於未歸屬附件。`);}
+ c.attachments=newAssets;return c;
+}
 export const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const str=v=>v==null?'':typeof v==='string'?v:Array.isArray(v)?v.map(str).join('\n'):typeof v==='object'?JSON.stringify(v):String(v);
 export function safeUrl(v){try{const u=new URL(v);return ['https:','http:'].includes(u.protocol)?u.href:'';}catch{return '';}}
@@ -44,11 +79,11 @@ export function assemble(sources,now=new Date().toISOString()){
   }
   for(const a of s.assets)attachments.push({sourceId:s.id,...a,refs:rows.filter(r=>r.sourceId===s.id&&(r.photos.includes(a.path)||r.audios.includes(a.path))).map(r=>r.key)});
  }
- return {format:'g2e-return-report',schema:1,toolVersion:TOOL_VERSION,sopVersion:2,createdAt:now,sources:sourceRows,records:rows,attachments,warnings,research:[]};
+ return nameAttachments({format:'g2e-return-report',schema:2,toolVersion:TOOL_VERSION,sopVersion:2,createdAt:now,sources:sourceRows,records:rows,attachments,warnings,research:[]});
 }
 export function tables(c){
  const paths=(r,k)=>r[k].join('\n');
- return [
+ const legacy=[
  [['工具版本',TOOL_VERSION],['SOP版本',2],['產製時間',c.createdAt],['狀態','原始資料整理；尚未執行網路查證或多人合併'],['機台數',c.records.filter(r=>r.type==='機台').length],['賭場數',c.records.filter(r=>r.type==='賭場').length],['附件數',c.attachments.length],['使用方法','解壓縮整包後開啟 index.html 看圖與聽錄音。Excel 修改不會自動回寫網頁或 App。'],['原文保護','舊版混合文字不自動拆分。個人喜好不判定對錯。'],['長文字','單格超過 Excel 32,767 字元時以提示截短；完整內容保留於原始 JSON、canonical.json 及圖文頁。'],['待確認',c.warnings.join('\n')||'無附件或重複 ID 警告；不代表內容已查證']],
  c.records.filter(r=>r.type==='機台').map(r=>{const v=r.raw;return [r.key,r.identity,v.name,'',v.vendor,v.kind,'',v.location,v.locationDetail,v.description,v.personalNotes||'',v.work,v.family,'','','',str(v.tags),str(v.styles),v.artNotes,str(v.links),paths(r,'photos'),paths(r,'audios'),r.sourceId,v.id,v.updatedAt,v.archived?'封存':'一般',v.todo];}),
  c.records.filter(r=>r.type==='賭場').map(r=>{const v=r.raw;return [r.key,v.name,v.city,v.visitedOn,v.description,paths(r,'photos'),paths(r,'audios'),r.sourceId,v.id,v.updatedAt,v.archived?'是':'否'];}),
@@ -56,6 +91,13 @@ export function tables(c){
  [],
  c.sources.map(s=>[s.id,s.owner,s.name,s.sha256,s.appVersion,s.schema,s.exportedAt,s.path,s.records,s.casinos,s.media]),
  c.attachments.map(a=>[a.sourceId,a.id,a.name,a.type,a.origin,a.caption,a.path,a.bytes.length,a.sha256,a.refs.join('\n')])
+ ];
+ const byKey=new Map(legacy[1].map(row=>[row[0],row]));
+ return [
+ sortedRecords(c).filter(r=>r.type==='機台').map(r=>[vendorFor(r),r.raw.name,r.photos.length?'見圖文網頁':'無照片',r.raw.locationDetail||r.raw.location,str(r.raw.tags),excerpt(r.raw.description),excerpt(r.raw.personalNotes),r.owner,r.identity,r.key]),
+ sortedRecords(c).filter(r=>r.type==='機台').map(r=>detailOrder.map(i=>byKey.get(r.key)[i])),
+ legacy[2].map(r=>[r[1],r[2],r[3],r[4],r[5],r[6],r[10],r[0],r[7],r[8],r[9]]),
+ legacy[4],legacy[3],legacy[5],legacy[6],legacy[0].concat([['總覽摘錄','玩法與心得最多顯示 100 字；完整原文見遊戲詳細資料。未使用 AI 摘要。'],['AI 查證','請先閱讀 AI整理/README_AI.md；本工具不會自動上網查證。'],['附件命名','依廠商／賭場分類，以機台或賭場名稱加編號命名；編號不是永久 ID。多次匯出請分包保存。'],['代表圖片','JPEG／PNG 可內嵌，其餘格式請開啟圖文網頁或原檔。']])
  ];
 }
 export function serializable(c){return {...c,attachments:c.attachments.map(({bytes,...a})=>({...a,size:bytes.length}))};}
