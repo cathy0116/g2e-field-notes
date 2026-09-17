@@ -97,3 +97,4 @@ button[data-action="star"][aria-pressed="true"]:hover,button[data-action="star"]
 button[data-action="star"][aria-pressed="true"]{background:#fff1b8;color:#66500d;border-color:#b8a261;box-shadow:none}
 button[data-action="star"][aria-pressed="true"]:hover,button[data-action="star"][aria-pressed="true"]:active{background:#f5e5a5;color:#66500d}
 #data-management-dialog{width:560px;padding:24px}#data-management-dialog ul{max-height:180px;overflow:auto;padding-left:24px}#data-management-dialog .checkrow{margin:18px 0;align-items:flex-start}#data-management-dialog input[type=text],#management-word{font-size:16px;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:7px}#management-error{color:#a53333}#data-management-dialog .actions{margin-bottom:0}#data-management-dialog button:disabled{opacity:.5;cursor:not-allowed}
+.editor-notes{display:grid;gap:20px}

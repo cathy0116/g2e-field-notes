@@ -6,7 +6,7 @@ export function dataManagementPlan(snapshot,mode){
  const attachment=new Map(media.map(m=>[m.id,m]));
  const protectedDraftIds=new Set(drafts.flatMap(d=>[d.record?.id,d.originalId,d.id?.replace(/^(edit|note)-/,'')]));
  const removable=r=>/^PRE-/.test(r.id)&&r.location==='事前資料'&&r.userEdited===false&&
-  r.createdAt&&r.updatedAt===r.createdAt&&!r.seen&&!r.archived&&Array.isArray(r.notes)&&!r.notes.length&&
+  r.createdAt&&r.updatedAt===r.createdAt&&!r.seen&&!r.archived&&!r.personalNotes?.trim()&&Array.isArray(r.notes)&&!r.notes.length&&
   !(r.audioIds||[]).length&&!protectedDraftIds.has(r.id)&&Array.isArray(r.mediaIds)&&
   r.mediaIds.every(mid=>/^seed-/.test(mid)&&attachment.get(mid)?.origin==='事前文章配圖');
  const removed=mode==='all'?records:records.filter(removable);
