@@ -2,7 +2,7 @@ import {canonicalVendor,vendorNames,groupVendors,normalizeVendorRecord} from './
 import {icon,navigation,primaryTab,myTabs,menuRow} from './ui.js';
 import {deletionPlan} from './lifecycle.js';
 import {validateAudio,createRecorder} from './audio.js';
-const APP_VERSION='2.4.0';
+const APP_VERSION='2.5.0';
 let currentContext={location:'展場',locationDetail:''},updateAvailable=false;
 import {checkVocabulary,setVocabulary,EKG,termByName,termById,normalizeEKGRecord} from './ekg.js';
 import {helpView} from './help.js';
@@ -98,6 +98,10 @@ document.addEventListener('submit',async e=>{e.preventDefault();const form=e.tar
 document.addEventListener('click',async e=>{const button=e.target.closest('[data-action]'),nav=e.target.closest('[data-nav]');if((uploading||heavy||recorder.recovery)&&e.target.closest('a,button,label')){if(!['record-stop','audio-retry','audio-rescue','audio-discard'].includes(button?.dataset.action)){e.preventDefault();notify('請等待目前操作完成。');return;}}try{if(nav){location.hash=nav.dataset.nav;return;}if(!button)return;const {action,id:rid,mid}=button.dataset;
  if(action==='delete-draft'){const d=await DB.get('drafts',rid);if(!d)return;if(!confirm('永久刪除草稿「'+draftName(d)+'」？未儲存內容及未被其他紀錄引用的附件會刪除，無法復原。已儲存的正式紀錄不受影響。'))return;await deleteLocal('draft',rid);await draftsView(routeToken);return;}
  else if(action==='delete-record'){const r=currentRecord(rid);if(!r.archived)throw Error('請先封存紀錄。');if(!confirm('永久刪除「'+r.name+'」？這筆紀錄、相關草稿及未共用的照片／錄音將刪除，無法復原。請先確認已備份。'))return;await deleteLocal('record',rid);archiveView();return;}
+ else if(action==='manage-data'){await previewDataManagement(button.dataset.mode);return;}
+ else if(action==='manage-cancel'){$('#data-management-dialog')?.close();managementPreview=null;return;}
+ else if(action==='manage-confirm'){await confirmDataManagement();return;}
+ else if(action==='manage-backup'){$('#data-management-dialog')?.close();managementPreview=null;$('#backup-scope').value='all';await makeBackup();$('#backup-output')?.scrollIntoView({block:'center'});return;}
  else if(action==='check-update'){await checkUpdate();return;}
  else if(action==='apply-update'){if(!updateAvailable)return;if(editor)await flushDraft();await persistNote();if(!confirm('已儲存目前草稿。套用新版會重新開啟 App，不會清除資料；請確認重要內容已備份。'))return;location.reload();return;}
  else if(action==='remember-location'){readForm();await rememberContext(editor.record.location,editor.record.locationDetail);$('#context-status').textContent=' 已記住：'+currentContext.location+' '+currentContext.locationDetail;return;}
@@ -176,7 +180,7 @@ function draftName(d){return d.record?.name||(d.id.startsWith('casino-')?'未命
 async function draftsView(token){const ds=await DB.all('drafts');if(token!==routeToken)return;main.innerHTML=pageHead('我的紀錄','')+myTabs('drafts')+`<div class="list-heading"><h2>草稿</h2><span>${ds.length} 筆</span></div>`+(ds.length?`<div class="manage-list">${ds.sort((a,b)=>Date.parse(b.savedAt)-Date.parse(a.savedAt)).map(d=>`<article class="manage-row"><div><h3>${esc(draftName(d))}</h3><small>${esc(fmt(d.savedAt))}</small></div><div class="actions"><a class="file-button" href="#${draftLink(d)}">繼續</a><button class="danger" data-action="delete-draft" data-id="${esc(d.id)}" aria-label="刪除草稿：${esc(draftName(d))}">刪除</button></div></article>`).join('')}</div>`:'<div class="empty"><h2>沒有未完成的草稿</h2><a class="file-button" href="#capture">新增記錄</a></div>');}
 function archiveView(){const list=records.filter(r=>r.archived);main.innerHTML=pageHead('我的紀錄','')+myTabs('archive')+`<div class="list-heading"><h2>已封存</h2><span>${list.length} 筆</span></div>`+(list.length?`<div class="manage-list">${list.map(r=>`<article class="manage-row"><div><h3>${esc(r.name)}</h3><small>${esc(r.vendor)}</small></div><div class="actions"><button data-action="unarchive" data-id="${esc(r.id)}">還原</button><button class="danger" data-action="delete-record" data-id="${esc(r.id)}" aria-label="永久刪除：${esc(r.name)}">永久刪除</button></div></article>`).join('')}</div>`:'<div class="empty"><h2>沒有封存紀錄</h2></div>');}
 async function deleteLocal(kind,key){clearTimeout(formTimer);await draftQueue;const ds=await DB.all('drafts');const snapshot={records:await DB.all('records'),casinos:(await DB.get('meta','casinos'))?.value||[],drafts:ds};const plan=deletionPlan(snapshot,kind,key);await DB.batch(plan.changes);if(editor?.key===key)editor=null;preparedBackup=null;for(const mid of plan.mediaIds)for(const suffix of [':thumb',':full']){const k=mid+suffix;if(objectUrls.has(k)){URL.revokeObjectURL(objectUrls.get(k));objectUrls.delete(k);}}await refresh();notify(kind==='draft'?'草稿已刪除；正式紀錄保留':'已永久刪除；僅可從既有備份找回');}
-async function settings(token){const drafts=await DB.all('drafts');const meta=await DB.get('meta','lastBackup');if(token!==routeToken)return;main.innerHTML=pageHead('資料與備份','僅存這台裝置，不會自動同步。')+`<section class="panel"><h2>備份與匯入</h2><p class="muted">完整備份含照片與錄音。請另存到「檔案」。</p>${drafts.length?`<p class="notice">${drafts.length} 份草稿尚未儲存。<a href="#drafts">處理草稿</a></p>`:''}<label class="form-field" for="backup-scope">備份範圍<select id="backup-scope"><option value="all">全部資料（完整備份）</option><option value="mine">新增／修改的資料</option><option value="casinos">所有賭場</option><optgroup label="按賭場">${casinos.map(c=>`<option value="casino:${esc(c.id)}">${esc(c.name)}</option>`).join('')}</optgroup><optgroup label="按廠商">${vendors.map(v=>`<option value="vendor:${esc(v.name)}">${esc(v.name)}</option>`).join('')}</optgroup><optgroup label="按機台">${records.map(r=>`<option value="record:${esc(r.id)}">${esc(r.name)}</option>`).join('')}</optgroup></select></label><div class="actions section-actions"><button class="primary" data-action="backup">製作完整備份</button><label class="file-button">匯入資料／備份<input id="restore-input" type="file" accept=".json,application/json"></label></div><div id="backup-output"></div><p id="backup-status" role="status"></p><div id="restore-preview"></div><small>上次製作：${meta?esc(fmt(meta.value)):'尚未製作'} · 請確認檔案已存好</small></section>`+updatePanel()+`<section class="panel"><h2>離線使用</h2><p id="offline-status">正在確認…</p><div class="progress"><span id="offline-progress"></span></div><button data-action="offline">下載離線資料</button><details><summary>儲存空間與進階工具</summary><p>${records.length} 筆機台 · ${casinos.length} 筆賭場</p><div class="actions"><button data-action="persist">請求保留本機資料</button><button data-action="csv-all">匯出 CSV</button></div><p id="persist-status" class="muted">CSV 不含附件，不能代替備份。</p></details></section><p class="muted">更新請勿清除網站資料。<a href="#help">使用教學</a></p>`;if('serviceWorker'in navigator&&isSecureContext)swMessage('STATUS').then(s=>{offlineReady=s.ready;if($('#offline-status'))$('#offline-status').textContent=s.ready?'已可離線使用':'請連網下載一次';}).catch(()=>{if($('#offline-status'))$('#offline-status').textContent='無法確認，請重試';});}
+async function settingsBase(token){const drafts=await DB.all('drafts');const meta=await DB.get('meta','lastBackup');if(token!==routeToken)return;main.innerHTML=pageHead('資料與備份','僅存這台裝置，不會自動同步。')+`<section class="panel"><h2>備份與匯入</h2><p class="muted">完整備份含照片與錄音。請另存到「檔案」。</p>${drafts.length?`<p class="notice">${drafts.length} 份草稿尚未儲存。<a href="#drafts">處理草稿</a></p>`:''}<label class="form-field" for="backup-scope">備份範圍<select id="backup-scope"><option value="all">全部資料（完整備份）</option><option value="mine">新增／修改的資料</option><option value="casinos">所有賭場</option><optgroup label="按賭場">${casinos.map(c=>`<option value="casino:${esc(c.id)}">${esc(c.name)}</option>`).join('')}</optgroup><optgroup label="按廠商">${vendors.map(v=>`<option value="vendor:${esc(v.name)}">${esc(v.name)}</option>`).join('')}</optgroup><optgroup label="按機台">${records.map(r=>`<option value="record:${esc(r.id)}">${esc(r.name)}</option>`).join('')}</optgroup></select></label><div class="actions section-actions"><button class="primary" data-action="backup">製作完整備份</button><label class="file-button">匯入資料／備份<input id="restore-input" type="file" accept=".json,application/json"></label></div><div id="backup-output"></div><p id="backup-status" role="status"></p><div id="restore-preview"></div><small>上次製作：${meta?esc(fmt(meta.value)):'尚未製作'} · 請確認檔案已存好</small></section>`+updatePanel()+`<section class="panel"><h2>離線使用</h2><p id="offline-status">正在確認…</p><div class="progress"><span id="offline-progress"></span></div><button data-action="offline">下載離線資料</button><details><summary>儲存空間與進階工具</summary><p>${records.length} 筆機台 · ${casinos.length} 筆賭場</p><div class="actions"><button data-action="persist">請求保留本機資料</button><button data-action="csv-all">匯出 CSV</button></div><p id="persist-status" class="muted">CSV 不含附件，不能代替備份。</p></details></section><p class="muted">更新請勿清除網站資料。<a href="#help">使用教學</a></p>`;if('serviceWorker'in navigator&&isSecureContext)swMessage('STATUS').then(s=>{offlineReady=s.ready;if($('#offline-status'))$('#offline-status').textContent=s.ready?'已可離線使用':'請連網下載一次';}).catch(()=>{if($('#offline-status'))$('#offline-status').textContent='無法確認，請重試';});}
 
 // Move existing controls, never duplicate or reconstruct their values.
 function arrangeEditor(){
@@ -194,4 +198,40 @@ function arrangeEditor(){
  const toggle=$('#quick-toggle');
  const footer=form.querySelector('.form-footer');
  for(const el of [basic,photos,audio,notes,toggle,category,extra])if(el)form.insertBefore(el,footer);
+}
+
+let managementPreview=null;
+async function settings(token){
+ await settingsBase(token);if(token!==routeToken)return;
+ main.insertAdjacentHTML('beforeend',`<section class="panel"><h2>資料管理</h2><p class="muted">只影響這台裝置。請先下載完整備份。</p><div class="actions"><button data-action="manage-data" data-mode="prerelease">清除未修改的事前資料</button><button class="danger" data-action="manage-data" data-mode="all">重置全部資料</button></div></section>`);
+}
+async function previewDataManagement(mode){
+ if(heavy||uploading||recorder.active||recorder.recovery)throw Error('請先完成錄音或檔案處理。');
+ heavy=true;
+ try{
+  clearTimeout(formTimer);await draftQueue;
+  managementPreview=await DB.manageData(mode);
+  const p=managementPreview.plan,all=mode==='all';
+  let dialog=$('#data-management-dialog');if(!dialog){dialog=document.createElement('dialog');dialog.id='data-management-dialog';document.body.append(dialog);dialog.addEventListener('close',()=>{managementPreview=null;});}
+  dialog.setAttribute('aria-labelledby','management-title');
+  dialog.innerHTML=`<h2 id="management-title">${all?'重置全部資料':'清除未修改的事前資料'}</h2><p>將刪除 ${p.records} 筆機台、${p.images} 張圖片、${p.audio} 段錄音${all?`、${p.casinos} 筆賭場、${p.drafts} 份草稿`:'。'}${all?'。':''}</p><p>${all?`同時清除 ${p.vendors} 筆廠商、${p.terms} 項詞彙及本機設定。App 保留，可重新匯入資料包。`:`保留 ${p.kept} 筆機台及所有賭場、草稿、廠商與詞彙。有修改、筆記、個人附件或無法確定的紀錄不刪除。`}</p>${p.names.length?`<details><summary>查看機台清單（${p.records} 筆）</summary><ul>${p.names.map(n=>`<li>${esc(n)}</li>`).join('')}</ul></details>`:''}<p class="danger">刪除無法復原，只能從已下載的備份找回。</p><button data-action="manage-backup">先製作完整備份</button><label class="checkrow"><input id="management-ack" type="checkbox">我已下載備份，或確認這些資料不需保留</label>${all?'<label class="form-field" for="management-word">輸入「重置」確認<input id="management-word" autocomplete="off" placeholder="重置"></label>':''}<p id="management-error" role="alert"></p><div class="actions section-actions"><button data-action="manage-cancel" autofocus>取消</button><button class="danger" data-action="manage-confirm" ${!all&&!p.records?'disabled':''}>${all?'確認重置全部':'確認清除'}</button></div>`;
+  dialog.showModal();
+ }finally{heavy=false;}
+}
+async function confirmDataManagement(){
+ const preview=managementPreview;if(!preview)return;
+ const error=$('#management-error');error.textContent='';
+ if(!$('#management-ack').checked){error.textContent='請先確認已備份，或不需保留這些資料。';return;}
+ if(preview.plan.mode==='all'&&$('#management-word').value!=='重置'){error.textContent='請輸入「重置」。';return;}
+ if(recorder.active||recorder.recovery||uploading||heavy){error.textContent='請先完成目前操作。';return;}
+ heavy=true;
+ try{
+  await DB.manageData(preview.plan.mode,preview.fingerprint);
+  preparedBackup=null;pendingImport=null;editor=null;
+  for(const url of objectUrls.values())URL.revokeObjectURL(url);objectUrls.clear();
+  managementPreview=null;$('#data-management-dialog').close();
+  // Reinitialize in-memory vocabulary and filters only after the transaction commits.
+  location.hash='settings';location.reload();
+ }catch(e){error.textContent=errorText(e);}
+ finally{heavy=false;}
 }
