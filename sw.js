@@ -1,11 +1,21 @@
-const VERSION='public-v2.6.1', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
+const VERSION='public-v2.6.2', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
 const CORE=['./','index.html','styles.css','app.js','audio.js','ui.js','vendors.js','lifecycle.js','help.js','model.js','ekg.js','db.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','offline-assets.json'];
-self.addEventListener('install',e=>e.waitUntil((async()=>{await (await caches.open(SHELL)).addAll(CORE);await self.skipWaiting();})()));
+const coreUrl=path=>new URL(path,self.registration.scope).href;
+const coreUrls=new Set(CORE.map(coreUrl));
+async function cachedAppVersion(){const r=await (await caches.open(SHELL)).match(coreUrl('app.js'));return r?(await r.text()).match(/const APP_VERSION='([^']+)'/)?.[1]:null;}
+self.addEventListener('install',e=>e.waitUntil((async()=>{
+ const expected=VERSION.replace('public-v',''),staged=[];
+ for(const path of CORE){const url=new URL(path,self.registration.scope);url.searchParams.set('__release',expected);const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('更新下載失敗：'+path);staged.push([coreUrl(path),r]);}
+ const app=staged.find(([url])=>url===coreUrl('app.js'))[1];
+ if((await app.clone().text()).match(/const APP_VERSION='([^']+)'/)?.[1]!==expected)throw Error('網站版本尚未一致，請稍後重試');
+ const shell=await caches.open(SHELL);for(const [url,r] of staged)await shell.put(url,r);
+ await self.skipWaiting();
+})()));
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
-self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.pathname.endsWith('/version.json')){e.respondWith(fetch(e.request,{cache:'no-store'}));return;}if(e.request.method!=='GET'||u.origin!==self.location.origin||!u.pathname.startsWith(new URL(self.registration.scope).pathname))return;e.respondWith((async()=>{const full=await caches.open(FULL),shell=await caches.open(SHELL);const cached=await full.match(e.request)||await shell.match(e.request);if(cached)return cached;if(u.pathname.includes('/assets/')){const old=await caches.match(e.request);if(old)return old;}try{return await fetch(e.request);}catch(err){if(e.request.mode==='navigate')return await shell.match(new URL('index.html',self.registration.scope));throw err;}})());});
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(u.pathname.endsWith('/version.json')){e.respondWith(fetch(e.request,{cache:'no-store'}));return;}if(e.request.method!=='GET'||u.origin!==self.location.origin||!u.pathname.startsWith(new URL(self.registration.scope).pathname))return;e.respondWith((async()=>{const full=await caches.open(FULL),shell=await caches.open(SHELL);const clean=new URL(u);clean.search='';const cached=coreUrls.has(clean.href)?await shell.match(clean.href):await full.match(e.request)||await shell.match(e.request);if(cached)return cached;if(u.pathname.includes('/assets/')){const old=await caches.match(e.request);if(old)return old;}try{return await fetch(e.request);}catch(err){if(e.request.mode==='navigate')return await shell.match(new URL('index.html',self.registration.scope));throw err;}})());});
 let preparing=false;
 self.addEventListener('message',e=>{
- if(e.data?.type==='STATUS'){e.waitUntil((async()=>{const c=await caches.open(FULL);e.ports[0]?.postMessage({ready:!!await c.match(new URL('__complete__',self.registration.scope)),version:VERSION});})());return;}
+ if(e.data?.type==='STATUS'){e.waitUntil((async()=>{const c=await caches.open(FULL);e.ports[0]?.postMessage({ready:!!await c.match(new URL('__complete__',self.registration.scope)),version:VERSION,appVersion:await cachedAppVersion()});})());return;}
  if(e.data?.type!=='PREPARE')return;
  const port=e.ports[0];if(preparing){port.postMessage({error:'離線資料正在下載，請稍後再查看。'});return;}preparing=true;
  e.waitUntil((async()=>{try{const list=await (await fetch(new URL('offline-assets.json',self.registration.scope))).json();const cache=await caches.open(FULL);let done=0;for(const path of list){const url=new URL(path,self.registration.scope);if(!await cache.match(url)){const res=await fetch(url,{cache:'reload'});if(!res.ok)throw Error('下載失敗：'+path);await cache.put(url,res);}done++;port.postMessage({done,total:list.length});}await cache.put(new URL('__complete__',self.registration.scope),new Response(VERSION));port.postMessage({ready:true,done,total:list.length});}catch(err){port.postMessage({error:err.message});}finally{preparing=false;}})());
