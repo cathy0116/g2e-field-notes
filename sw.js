@@ -1,4 +1,4 @@
-const VERSION='public-v2.6.0', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
+const VERSION='public-v2.6.1', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
 const CORE=['./','index.html','styles.css','app.js','audio.js','ui.js','vendors.js','lifecycle.js','help.js','model.js','ekg.js','db.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','offline-assets.json'];
 self.addEventListener('install',e=>e.waitUntil((async()=>{await (await caches.open(SHELL)).addAll(CORE);await self.skipWaiting();})()));
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));

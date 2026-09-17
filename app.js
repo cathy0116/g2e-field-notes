@@ -2,7 +2,7 @@ import {canonicalVendor,vendorNames,groupVendors,normalizeVendorRecord} from './
 import {icon,navigation,primaryTab,myTabs,menuRow} from './ui.js';
 import {deletionPlan} from './lifecycle.js';
 import {validateAudio,createRecorder} from './audio.js';
-const APP_VERSION='2.6.0';
+const APP_VERSION='2.6.1';
 let currentContext={location:'展場',locationDetail:''},updateAvailable=false;
 import {checkVocabulary,setVocabulary,EKG,termByName,termById,normalizeEKGRecord} from './ekg.js';
 import {helpView} from './help.js';
