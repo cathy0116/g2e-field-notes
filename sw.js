@@ -1,4 +1,4 @@
-const VERSION='public-v2.6.2', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
+const VERSION='public-v2.6.3', SHELL='g2e-shell-'+VERSION, FULL='g2e-offline-'+VERSION;
 const CORE=['./','index.html','styles.css','app.js','audio.js','ui.js','vendors.js','lifecycle.js','help.js','model.js','ekg.js','db.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','offline-assets.json'];
 const coreUrl=path=>new URL(path,self.registration.scope).href;
 const coreUrls=new Set(CORE.map(coreUrl));
